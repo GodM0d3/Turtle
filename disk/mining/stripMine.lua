@@ -1,4 +1,5 @@
-local xChange, heightChange, zChange, facing, resumeHeight = 0, 0, 0, 0, 0
+-- Global Variables and tables
+local xChange, heightChange, zChange, facing = 0, 0, 0, 0
 local FACING_FORWARD, FACING_RIGHT, FACING_BACK, FACING_LEFT = 0, 1, 2, 3
 local INVENTORY_SIZE = 16
 local directions = {
@@ -9,13 +10,13 @@ local directions = {
     forward = {turtle.forward, 1},
     back = {turtle.back, -1}
 }
-
 local changes = {
     [FACING_FORWARD] = function(dir) xChange = xChange + dir end,
     [FACING_RIGHT] = function(dir) zChange = zChange + dir end,
     [FACING_BACK] = function(dir) xChange = xChange - dir end,
     [FACING_LEFT] = function(dir) zChange = zChange - dir end
 }
+-- Turn function
 local function turn(direction)
     local turn_func, dir = unpack(directions[direction])
     if not turn_func then
@@ -26,6 +27,12 @@ local function turn(direction)
         facing = (facing + dir) % 4 
     end
 end
+local function turnToDirection(targetDirection)
+    while facing ~= targetDirection do
+        turn("right")
+    end
+end
+-- Move functions
 local function goVertical(direction)
     local go_func, dir = unpack(directions[direction])
     if not go_func then
@@ -51,6 +58,7 @@ local function goHorizontal(direction)
         return false
     end
 end
+-- Checking inventory
 local function checkSlotsFor(check_string)
     for slot = 1, INVENTORY_SIZE do
         local itemDetail = turtle.getItemDetail(slot)
@@ -59,6 +67,24 @@ local function checkSlotsFor(check_string)
         end
     end
     return false
+end
+local function countEmptySlots()
+    local count = 0
+    for i = 1, INVENTORY_SIZE do
+        if turtle.getItemCount(i) == 0 then
+            count = count + 1
+        end
+    end
+    return count
+end
+-- Place stuff
+local function placeTorch()
+    local slot = checkSlotsFor("minecraft:torch")
+    if slot == -1 then
+        return false
+    end
+    turtle.select(slot)
+    return turtle.place()
 end
 local function placeAndEmpty()
     turn("left")
@@ -80,86 +106,68 @@ local function placeAndEmpty()
         turtle.select(pos)
         local itemDetail = turtle.getItemDetail(slot_c)
         if itemDetail and itemDetail.name ~= "minecraft:chest" and itemDetail.name ~= "minecraft:torch" then
-            turtle.drop()
-        end
-    end
-    turn("right")
-    return true
-end
-local function goHome(changeHeight)
-    while xChange ~= 0 and facing ~= FACING_BACK do
-        turn("right")
-    end
-    while xChange > 0 do
-        goHorizontal("forward")
-    end
-    while zChange ~= 0 and facing ~= FACING_LEFT do
-        turn("right")
-    end
-    while zChange > 0 do
-        goHorizontal("forward")
-    end
-    turn("right")
-    if changeHeight then
-        while heightChange ~= 0 do
-            if heightChange > 0 then
-                goVertical("down")
-                resumeHeight=resumeHeight + 1
-            else
-                goVertical("up")
-                resumeHeight=resumeHeight - 1
+            if not turtle.drop() then
+                print("Error: Cant drop in placed chest")
+                return false
             end
         end
     end
-end
-local function goResumeHeight()
-    while resumeHeight ~= 0 do
-        if resumeHeight < 0 then
-            goVertical("down")
-            resumeHeight=resumeHeight + 1
-        else
-            goVertical("up")
-            resumeHeight=resumeHeight - 1
-        end
-    end
-end
-local function placeTorch()
-    local slot = checkSlotsFor("minecraft:torch")
-    if slot == -1 then
-        return false
-    end
-    turtle.select(slot)
-    return turtle.place()
-end
-local function countEmptySlots()
-    local count = 0
-    for i = 1, INVENTORY_SIZE do
-        if turtle.getItemCount(i) == 0 then
-            count = count + 1
-        end
-    end
-    return count
-end
-local function EmptyAtHome()
-    turn("right")
-    turn("right")
-    for i=1,INVENTORY_SIZE do
-        turtle.select(i)
-        if not turtle.drop() then
-            turn("right")
-            turn("right")
-            return false
-        end
-    end
-    turn("right")
     turn("right")
     return true
 end
-local function deposit()
-    if countEmptySlots() < 3 then
-        return EmptyAtHome()
+-- Go to places
+local function goToCoordinates(x, z)
+    local xDiff = x - xChange
+    local zDiff = z - zChange
+    if xDiff > 0 then
+        turnToDirection(FACING_RIGHT)
+        for _ = 1, xDiff do
+            goHorizontal("forward")
+        end
+    elseif xDiff < 0 then
+        turnToDirection(FACING_BACK)
+        for _ = 1, math.abs(xDiff) do
+            goHorizontal("forward")
+        end
+    end
+    
+    if zDiff > 0 then
+        turnToDirection(FACING_RIGHT)
+        for _ = 1, zDiff do
+            goHorizontal("forward")
+        end
+    elseif zDiff < 0 then
+        turnToDirection(FACING_LEFT)
+        for _ = 1, math.abs(zDiff) do
+            goHorizontal("forward")
+        end
     end
 end
+local function goToHeight(targetHeight)
+    local heightDiff = targetHeight - heightChange
+    if heightDiff > 0 then
+        for _ = 1, heightDiff do
+            goVertical("up")
+        end
+    elseif heightDiff < 0 then
+        for _ = 1, math.abs(heightDiff) do
+            goVertical("down")
+        end
+    end
+end
+-- Others
+local function EmptyAtHome()
+    turnToDirection(FACING_BACK)
+    for i=1,INVENTORY_SIZE do
+        turtle.select(i)
+        if not turtle.drop() then
+            return false
+        end
+    end
+    return true
+end
+
+-- Main functions
 local function cube (x, height, z, upOffset, homeFunc)
     local init, turnR 
     for i =1, upOffset do
@@ -225,5 +233,4 @@ local function cube (x, height, z, upOffset, homeFunc)
     goHome(false)
 end
 
-cube(5, 5, 6, 1, deposit)
-goHome(true)
+cube(5, 5, 6, 1, nil)
