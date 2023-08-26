@@ -3,6 +3,7 @@ local heightChange = 0
 local zChange = 0
 local facing = 0
 local bridge = false
+local resumeHeight = 0
 
 local function turnRight()
     if turtle.turnRight() then
@@ -79,8 +80,7 @@ local function checkSlotsFor(check_string)
     end
     return false
 end
-
-local function emptyInventory()
+local function placeAndEmpty()
     turnLeft()
     goUp()
     while turtle.detect() do
@@ -119,8 +119,25 @@ local function goHome(changeHeight)
     end
     turnRight()
     if changeHeight then
-        while heightChange < 0 do
+        while heightChange ~= 0 do
+            if heightChange > 0 then
+                goDown()
+                resumeHeight=resumeHeight + 1
+            else
+                goUp()
+                resumeHeight=resumeHeight - 1
+            end
+        end
+    end
+end
+local function goResumeHeight()
+    while resumeHeight ~= 0 do
+        if resumeHeight > 0 then
+            goDown()
+            resumeHeight=resumeHeight + 1
+        else
             goUp()
+            resumeHeight=resumeHeight - 1
         end
     end
 end
@@ -132,16 +149,31 @@ local function placeTorch()
     turtle.select(slot)
     return turtle.place()
 end
-local function deposit(all)
-    if not all then
-        return turtle.drop()
+local function countEmptySlots()
+    local count = 0
+    for i = 1, 16 do
+        if turtle.getItemCount(i) == 0 then
+            count = count + 1
+        end
     end
+    return count
+end
+local function EmptyAtHome()
+    turnLeft()
+    turnLeft()
     for i=1,16 do
         turtle.select(i)
-        turtle.drop()
+        if not turtle.drop() then
+            turnRight()
+            turnRight()
+            return false
+        end
     end
+    turnRight()
+    turnRight()
+    return true
 end
-local function cube (x, height, z, upOffset)
+local function cube (x, height, z, upOffset, homeFunc)
     local init, turnR 
     for i =1, upOffset do
         while not goUp() do
@@ -149,7 +181,9 @@ local function cube (x, height, z, upOffset)
         end
     end
     local u = 2
+    local anotherLayer = false
     repeat
+        anotherLayer = false
         init = true
         turnR = true
         for i = 1, z do
@@ -181,7 +215,16 @@ local function cube (x, height, z, upOffset)
         end
         turtle.digDown()
         goHome(false)
+        if not (homeFunc == nil) then
+            goHome(true)
+            io.write("[HomeFunc] ")
+            if not homeFunc() then
+                return false
+            end
+            goResumeHeight()
+        end
         if u < height then
+            anotherLayer = true
             turtle.digDown()
             goDown()
             u = u + 1
@@ -191,8 +234,12 @@ local function cube (x, height, z, upOffset)
             goDown()
             u = u + 1
         end
-    until u >= height
+    until not anotherLayer
     goHome(false)
 end
-
-cube(5, 3, 6, 1)
+local function deposit()
+    if countEmptySlots() < 3 then
+        return EmptyAtHome()
+    end
+end
+cube(5, 3, 6, 1, deposit)
