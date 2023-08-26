@@ -28,6 +28,10 @@ local function turn(direction)
     end
 end
 local function turnToDirection(targetDirection)
+    local rightTurns = (targetDirection - facing) % 4
+    if rightTurns == 3 then
+        turn("left")
+    end
     while facing ~= targetDirection do
         turn("right")
     end
@@ -40,7 +44,7 @@ local function goVertical(direction)
         return false
     end
     if go_func() then 
-        heightChange = heightChange + math.abs(dir)
+        heightChange = heightChange + dir
         return true
     end
     return false
@@ -179,8 +183,8 @@ local function mineRow(length, up, down)
             print("Error: Cant move forward")
         end
         if up then
-            while turtle.detectUP() do
-                turtle.digUP()
+            while turtle.detectUp() do
+                turtle.digUp()
             end
         end
         if down then
@@ -191,13 +195,17 @@ local function mineRow(length, up, down)
     end
 end
 local function mineShaft(height, direction) 
+    if height <= 0 then
+        print("Error: Cant mine shaft with negative height")
+        return false
+    end
     for _ = 1, height do
         if direction == "up" then
-            while turtle.detectUP() do
-                turtle.digUP()
+            while turtle.detectUp() do
+                turtle.digUp()
             end
             while not goVertical(direction) do
-                turtle.digUP()
+                turtle.digUp()
             end
         elseif direction == "down" then
             turtle.digDown()
@@ -210,7 +218,7 @@ local function mineLayer(xSize, zSize, up, down)
     for iteration = 0, zSize - 1 do
         turnToDirection((iteration % 2) * 2)
         mineRow(xSize - 1, up, down)
-        if iteration ~= zSize then
+        if iteration ~= (zSize - 1) then
             turnToDirection(FACING_RIGHT)
             mineRow(1, up, down)
         end
@@ -219,25 +227,39 @@ end
 
 -- Main functions
 local function cube(xSize, ySize, zSize, yOffset)
-    mineShaft(ySize-yOffset, "down")
+    if turtle.getFuelLevel() < (xSize * ySize * zSize) then
+        print("Error: Not enough fuel")
+        return false
+    end
+    mineShaft(ySize-yOffset -1, "down")
     goToHeight(0)
     mineShaft(yOffset, "up")
+    print("Shaft finished")
     local level = 1
     while level <= ySize do
+        goToCoordinates(0,0)
         if level == ySize then
+            print("Single level")
             goToHeight(yOffset - level + 1)
             mineLayer(xSize, zSize, false, false)
             level = level + 1
         elseif level + 1 == ySize then
+            print("Double level")
+
             goToHeight(yOffset - level + 1)
             mineLayer(xSize, zSize, false, true)
             level = level + 2
         else
+            print("Tripple level")
             goToHeight(yOffset - level)
             mineLayer(xSize, zSize, true, true)
             level = level + 3
         end
     end
+    goToHeight(0)
+    goToCoordinates(0,0)
+    turnToDirection(FACING_FORWARD)
 end
-
-cube (3, 5, 4, 2)
+turtle.refuel()
+cube (3, 7, 2, 0)
+--mineShaft(4,"down")
