@@ -40,7 +40,7 @@ local function goVertical(direction)
         return false
     end
     if go_func() then 
-        heightChange = heightChange + dir
+        heightChange = heightChange + math.abs(dir)
         return true
     end
     return false
@@ -63,10 +63,10 @@ local function checkSlotsFor(check_string)
     for slot = 1, INVENTORY_SIZE do
         local itemDetail = turtle.getItemDetail(slot)
         if itemDetail and itemDetail.name == check_string then
-            return slot
+            return true, slot
         end
     end
-    return false
+    return false, -1
 end
 local function countEmptySlots()
     local count = 0
@@ -79,12 +79,66 @@ local function countEmptySlots()
 end
 -- Place stuff
 local function placeTorch()
-    local slot = checkSlotsFor("minecraft:torch")
-    if slot == -1 then
+    local suc, slot = checkSlotsFor("minecraft:torch")
+    if not suc then
         return false
     end
     turtle.select(slot)
     return turtle.place()
+end
+
+-- Go to places
+local function goToCoordinates(x, z)
+    local xDiff = x - xChange
+    local zDiff = z - zChange
+    if xDiff > 0 then
+        turnToDirection(FACING_RIGHT)
+        for _ = 1, xDiff do
+            if not goHorizontal("forward") then return false end
+        end
+    elseif xDiff < 0 then
+        turnToDirection(FACING_BACK)
+        for _ = 1, math.abs(xDiff) do
+            if not goHorizontal("forward") then return false end
+        end
+    end
+    
+    if zDiff > 0 then
+        turnToDirection(FACING_RIGHT)
+        for _ = 1, zDiff do
+            if not goHorizontal("forward") then return false end
+        end
+    elseif zDiff < 0 then
+        turnToDirection(FACING_LEFT)
+        for _ = 1, math.abs(zDiff) do
+            if not goHorizontal("forward") then return false end
+        end
+    end
+    return true
+end
+local function goToHeight(targetHeight)
+    local heightDiff = targetHeight - heightChange
+    if heightDiff > 0 then
+        for _ = 1, heightDiff do
+            if not goVertical("up") then return false end
+        end
+    elseif heightDiff < 0 then
+        for _ = 1, math.abs(heightDiff) do
+            if not goVertical("down") then return false end
+        end
+    end
+    return true
+end
+-- Inventory Management
+local function EmptyAtHome()
+    turnToDirection(FACING_BACK)
+    for i=1,INVENTORY_SIZE do
+        turtle.select(i)
+        if not turtle.drop() then
+            return false
+        end
+    end
+    return true
 end
 local function placeAndEmpty()
     turn("left")
@@ -96,15 +150,15 @@ local function placeAndEmpty()
     while turtle.detect() do
         turtle.dig()
     end
-    local slot_c = checkSlotsFor("minecraft:chest")
-    if slot_c == -1 then
+    local suc, slot_c = checkSlotsFor("minecraft:chest")
+    if not suc then
         return false
     end
     turtle.select(slot_c)
     turtle.place()
     for  pos=1, INVENTORY_SIZE do
         turtle.select(pos)
-        local itemDetail = turtle.getItemDetail(slot_c)
+        local itemDetail = turtle.getItemDetail(pos)
         if itemDetail and itemDetail.name ~= "minecraft:chest" and itemDetail.name ~= "minecraft:torch" then
             if not turtle.drop() then
                 print("Error: Cant drop in placed chest")
@@ -115,122 +169,75 @@ local function placeAndEmpty()
     turn("right")
     return true
 end
--- Go to places
-local function goToCoordinates(x, z)
-    local xDiff = x - xChange
-    local zDiff = z - zChange
-    if xDiff > 0 then
-        turnToDirection(FACING_RIGHT)
-        for _ = 1, xDiff do
-            goHorizontal("forward")
+-- Mining
+local function mineRow(length, up, down)
+    for _ = 1, length do
+        while turtle.detect() do
+            turtle.dig()
         end
-    elseif xDiff < 0 then
-        turnToDirection(FACING_BACK)
-        for _ = 1, math.abs(xDiff) do
-            goHorizontal("forward")
+        if not goHorizontal("forward") then
+            print("Error: Cant move forward")
         end
-    end
-    
-    if zDiff > 0 then
-        turnToDirection(FACING_RIGHT)
-        for _ = 1, zDiff do
-            goHorizontal("forward")
+        if up then
+            while turtle.detectUP() do
+                turtle.digUP()
+            end
         end
-    elseif zDiff < 0 then
-        turnToDirection(FACING_LEFT)
-        for _ = 1, math.abs(zDiff) do
-            goHorizontal("forward")
+        if down then
+            while turtle.detectDown() do
+                turtle.digDown()
+            end
         end
     end
 end
-local function goToHeight(targetHeight)
-    local heightDiff = targetHeight - heightChange
-    if heightDiff > 0 then
-        for _ = 1, heightDiff do
-            goVertical("up")
-        end
-    elseif heightDiff < 0 then
-        for _ = 1, math.abs(heightDiff) do
-            goVertical("down")
+local function mineShaft(height, direction) 
+    for _ = 1, height do
+        if direction == "up" then
+            while turtle.detectUP() do
+                turtle.digUP()
+            end
+            while not goVertical(direction) do
+                turtle.digUP()
+            end
+        elseif direction == "down" then
+            turtle.digDown()
+            goVertical(direction)
         end
     end
 end
--- Others
-local function EmptyAtHome()
-    turnToDirection(FACING_BACK)
-    for i=1,INVENTORY_SIZE do
-        turtle.select(i)
-        if not turtle.drop() then
-            return false
+local function mineLayer(xSize, zSize, up, down)
+    goToCoordinates(0,0)
+    for iteration = 0, zSize - 1 do
+        turnToDirection((iteration % 2) * 2)
+        mineRow(xSize - 1, up, down)
+        if iteration ~= zSize then
+            turnToDirection(FACING_RIGHT)
+            mineRow(1, up, down)
         end
     end
-    return true
 end
 
 -- Main functions
-local function cube (x, height, z, upOffset, homeFunc)
-    local init, turnR 
-    for i =1, upOffset do
-        while not goVertical("up") do
-            turtle.digUp()
+local function cube(xSize, ySize, zSize, yOffset)
+    mineShaft(ySize-yOffset, "down")
+    goToHeight(0)
+    mineShaft(yOffset, "up")
+    local level = 1
+    while level <= ySize do
+        if level == ySize then
+            goToHeight(yOffset - level + 1)
+            mineLayer(xSize, zSize, false, false)
+            level = level + 1
+        elseif level + 1 == ySize then
+            goToHeight(yOffset - level + 1)
+            mineLayer(xSize, zSize, false, true)
+            level = level + 2
+        else
+            goToHeight(yOffset - level)
+            mineLayer(xSize, zSize, true, true)
+            level = level + 3
         end
     end
-    local u = 2
-    local anotherLayer = false
-    repeat
-        anotherLayer = false
-        init = true
-        turnR = true
-        for i = 1, z do
-            if not init then
-                if turnR then
-                    turn("right")
-                else
-                    turn("left")
-                end
-                turtle.dig()
-                turtle.digDown()
-                goHorizontal("forward")
-                if turnR then
-                    turn("right")
-                else
-                    turn("left")
-                end
-                turtle.dig()
-                turtle.digDown()
-                turnR = not turnR
-            end
-            init = false
-            -- go down
-            for j = 2, x do
-                turtle.dig()
-                turtle.digDown()
-                goHorizontal("forward")
-            end
-        end
-        turtle.digDown()
-        goHome(false)
-        if not (homeFunc == nil) then
-            goHome(true)
-            io.write("[HomeFunc] ")
-            if not homeFunc() then
-                return false
-            end
-            goResumeHeight()
-        end
-        if u < height then
-            anotherLayer = true
-            turtle.digDown()
-            goVertical("down")
-            u = u + 1
-        end
-        if u < height then
-            turtle.digDown()
-            goVertical("down")
-            u = u + 1
-        end
-    until not anotherLayer
-    goHome(false)
 end
 
-cube(5, 5, 6, 1, nil)
+cube (3, 5, 4, 2)
