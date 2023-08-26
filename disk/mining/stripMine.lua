@@ -1,56 +1,51 @@
 local xChange, heightChange, zChange, facing, resumeHeight = 0, 0, 0, 0, 0
-local bridge = false
+local FACING_FORWARD, FACING_RIGHT, FACING_BACK, FACING_LEFT = 0, 1, 2, 3
 
-local FACING_FORWARD = 0
-local FACING_RIGHT = 1
-local FACING_BACK = 2
-local FACING_LEFT = 3
+local directions = {
+    right = {turtle.turnRight, 1},
+    left = {turtle.turnLeft, -1},
+    up = {turtle.up, 1},
+    down = {turtle.down, -1},
+    forward = {turtle.forward, 1},
+    back = {turtle.back, -1}
+}
 
+local changes = {
+    [FACING_FORWARD] = function(dir) xChange = xChange + dir end,
+    [FACING_RIGHT] = function(dir) zChange = zChange + dir end,
+    [FACING_BACK] = function(dir) xChange = xChange - dir end,
+    [FACING_LEFT] = function(dir) zChange = zChange - dir end
+}
 local function turn(direction)
-    if direction == "right" then
-        if turtle.turnRight() then facing = (facing + 1) % 4 end
-    elseif direction == "left" then
-        if turtle.turnLeft() then facing = (facing - 1) % 4 end
+    local turn_func, dir = unpack(directions[direction])
+    if not turn_func then
+        print("Error: turn() called without valid direction")
+        return false
+    end
+    if turn_func() then 
+        facing = (facing + dir) % 4 
     end
 end
-
 local function goVertical(direction)
-    if direction == "up" then
-        if turtle.up() then 
-            heightChange = heightChange + 1
-            return true
-        end
-    elseif direction == "down" then
-        if turtle.down() then 
-            heightChange = heightChange - 1
-            return true
-        end
+    local go_func, dir = unpack(directions[direction])
+    if not go_func then
+        print("Error: goVertical() called without valid direction")
+        return false
+    end
+    if go_func() then 
+        heightChange = heightChange + dir
+        return true
     end
     return false
 end
-
 local function goHorizontal(direction)
-    local suc, dir
-    if direction == "forward" then
-        dir = 1
-        suc = turtle.forward()
-    elseif direction == "back" then
-        dir = -1
-        suc = turtle.back()
-    else
+    local go_func, dir = unpack(directions[direction])
+    if not go_func then
         print("Error: goHorizontal() called without direction")
         return false
     end
-    if suc then
-        if facing == FACING_FORWARD then
-            xChange = xChange + dir
-        elseif facing == FACING_RIGHT then
-            zChange = zChange + dir
-        elseif facing == FACING_BACK then
-            xChange = xChange - dir
-        elseif facing == FACING_LEFT then
-            zChange = zChange - dir
-        end
+    if go_func() then
+        changes[facing](dir)
         return true
     else
         return false
