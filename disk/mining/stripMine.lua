@@ -6,8 +6,8 @@ local bridge = false
 
 local function turnRight()
     if turtle.turnRight() then
-        originalFacing = originalFacing + 1
-        originalFacing = originalFacing % 4
+        facing = facing + 1
+        facing = facing % 4
         return true
     else
         return false
@@ -15,8 +15,8 @@ local function turnRight()
 end
 local function turnLeft()
     if turtle.turnLeft() then 
-        originalFacing = originalFacing - 1
-        originalFacing = originalFacing % 4
+        facing = facing - 1
+        facing = facing % 4
         return true
     else
         return false
@@ -106,13 +106,93 @@ local function emptyInventory()
     turnRight()
     return true
 end
-
-local function strip_mine (length)
-    local counter = 0
-    while turtle.detect() do
-        turtle.dig()
+local function goHome(changeHeight)
+    while facing ~= 2 do
+        turnRight()
     end
-    
+    while xChange > 0 do
+        goForward()
+    end
+    turnRight()
+    while zChange > 0 do
+        goForward()
+    end
+    turnRight()
+    if changeHeight then
+        while heightChange < 0 do
+            goUp()
+        end
+    end
+end
+local function placeTorch()
+    local slot = checkSlotsFor("minecraft:torch")
+    if slot == -1 then
+        return false
+    end
+    turtle.select(slot)
+    return turtle.place()
+end
+local function deposit(all)
+    if not all then
+        return turtle.drop()
+    end
+    for i=1,16 do
+        turtle.select(i)
+        turtle.drop()
+    end
+end
+local function cube (x, height, z, upOffset)
+    local init, turnR 
+    for i =1, upOffset do
+        while not goUp() do
+            turtle.digUp()
+        end
+    end
+    local u = 2
+    repeat
+        init = true
+        turnR = true
+        for i = 1, z do
+            if not init then
+                if turnR then
+                    turnRight()
+                else
+                    turnLeft()
+                end
+                turtle.dig()
+                turtle.digDown()
+                goForward()
+                if turnR then
+                    turnRight()
+                else
+                    turnLeft()
+                end
+                turtle.dig()
+                turtle.digDown()
+                turnR = not turnR
+            end
+            init = false
+            -- go down
+            for j = 2, x do
+                turtle.dig()
+                turtle.digDown()
+                goForward()
+            end
+        end
+        turtle.digDown()
+        goHome(false)
+        if u < height then
+            turtle.digDown()
+            goDown()
+            u = u + 1
+        end
+        if u < height then
+            turtle.digDown()
+            goDown()
+            u = u + 1
+        end
+    until u >= height
+    goHome(false)
 end
 
-strip_mine(100)
+cube(5, 3, 6, 1)
