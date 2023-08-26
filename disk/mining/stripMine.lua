@@ -1,70 +1,55 @@
-local xChange = 0
-local heightChange = 0
-local zChange = 0
-local facing = 0
+local xChange, heightChange, zChange, facing, resumeHeight = 0, 0, 0, 0, 0
 local bridge = false
-local resumeHeight = 0
 
-local function turnRight()
-    if turtle.turnRight() then
-        facing = facing + 1
-        facing = facing % 4
-        return true
-    else
-        return false
+local FACING_FORWARD = 0
+local FACING_RIGHT = 1
+local FACING_BACK = 2
+local FACING_LEFT = 3
+
+local function turn(direction)
+    if direction == "right" then
+        if turtle.turnRight() then facing = (facing + 1) % 4 end
+    elseif direction == "left" then
+        if turtle.turnLeft() then facing = (facing - 1) % 4 end
     end
 end
-local function turnLeft()
-    if turtle.turnLeft() then 
-        facing = facing - 1
-        facing = facing % 4
-        return true
-    else
-        return false
-    end
-end
-local function goDown()
-    if turtle.down() then
-        heightChange = heightChange - 1
-        return true
-    else
-        return false
-    end
-end
-local function goUp()
-    if turtle.up() then 
-        heightChange = heightChange + 1
-        return true
-    else
-        return false
-    end
-end
-local function goForward()
-    if turtle.forward() then
-        if facing == 0 then
-            xChange = xChange + 1
-        elseif facing == 1 then
-            zChange = zChange + 1
-        elseif facing == 2 then
-            xChange = xChange - 1
-        elseif facing == 3 then
-            zChange = zChange - 1
+
+local function goVertical(direction)
+    if direction == "up" then
+        if turtle.up() then 
+            heightChange = heightChange + 1
+            return true
         end
-        return true
+    elseif direction == "down" then
+        if turtle.down() then 
+            heightChange = heightChange - 1
+            return true
+        end
+    end
+    return false
+end
+
+local function goHorizontal(direction)
+    local suc, dir
+    if direction == "forward" then
+        dir = 1
+        suc = turtle.forward()
+    elseif direction == "back" then
+        dir = -1
+        suc = turtle.back()
     else
+        print("Error: goHorizontal() called without direction")
         return false
     end
-end
-local function goBack()
-    if turtle.back() then
-        if facing == 0 then
-            xChange = xChange - 1
-        elseif facing == 1 then
-            zChange = zChange - 1
-        elseif facing == 2 then
-            xChange = xChange + 1
-        elseif facing == 3 then
-            zChange = zChange + 1
+    if suc then
+        if facing == FACING_FORWARD then
+            xChange = xChange + dir
+        elseif facing == FACING_RIGHT then
+            zChange = zChange + dir
+        elseif facing == FACING_BACK then
+            xChange = xChange - dir
+        elseif facing == FACING_LEFT then
+            zChange = zChange - dir
         end
         return true
     else
@@ -81,50 +66,52 @@ local function checkSlotsFor(check_string)
     return false
 end
 local function placeAndEmpty()
-    turnLeft()
-    goUp()
+    turn("left")
+    goVertical("up")
     while turtle.detect() do
         turtle.dig()
     end
-    goDown()
+    goVertical("down")
     while turtle.detect() do
         turtle.dig()
     end
-    slot = checkSlotsFor("minecraft:chest")
-    if slot == -1 then
+    local slot_c = checkSlotsFor("minecraft:chest")
+    if slot_c == -1 then
         return false
     end
-    turtle.select(slot)
+    turtle.select(slot_c)
     turtle.place()
-    for i =1, 16 do
-        turtle.select(i)
-        local itemDetail = turtle.getItemDetail(slot)
+    for  pos=1, 16 do
+        turtle.select(pos)
+        local itemDetail = turtle.getItemDetail(slot_c)
         if itemDetail and itemDetail.name ~= "minecraft:chest" and itemDetail.name ~= "minecraft:torch" then
             turtle.drop()
         end
     end
-    turnRight()
+    turn("right")
     return true
 end
 local function goHome(changeHeight)
-    while facing ~= 2 do
-        turnRight()
+    while xChange ~= 0 and facing ~= FACING_BACK do
+        turn("right")
     end
     while xChange > 0 do
-        goForward()
+        goHorizontal("forward")
     end
-    turnRight()
+    while zChange ~= 0 and facing ~= FACING_LEFT do
+        turn("right")
+    end
     while zChange > 0 do
-        goForward()
+        goHorizontal("forward")
     end
-    turnRight()
+    turn("right")
     if changeHeight then
         while heightChange ~= 0 do
             if heightChange > 0 then
-                goDown()
+                goVertical("down")
                 resumeHeight=resumeHeight + 1
             else
-                goUp()
+                goVertical("up")
                 resumeHeight=resumeHeight - 1
             end
         end
@@ -132,11 +119,11 @@ local function goHome(changeHeight)
 end
 local function goResumeHeight()
     while resumeHeight ~= 0 do
-        if resumeHeight > 0 then
-            goDown()
+        if resumeHeight < 0 then
+            goVertical("down")
             resumeHeight=resumeHeight + 1
         else
-            goUp()
+            goVertical("up")
             resumeHeight=resumeHeight - 1
         end
     end
@@ -159,24 +146,29 @@ local function countEmptySlots()
     return count
 end
 local function EmptyAtHome()
-    turnLeft()
-    turnLeft()
+    turn("right")
+    turn("right")
     for i=1,16 do
         turtle.select(i)
         if not turtle.drop() then
-            turnRight()
-            turnRight()
+            turn("right")
+            turn("right")
             return false
         end
     end
-    turnRight()
-    turnRight()
+    turn("right")
+    turn("right")
     return true
+end
+local function deposit()
+    if countEmptySlots() < 3 then
+        return EmptyAtHome()
+    end
 end
 local function cube (x, height, z, upOffset, homeFunc)
     local init, turnR 
     for i =1, upOffset do
-        while not goUp() do
+        while not goVertical("up") do
             turtle.digUp()
         end
     end
@@ -189,17 +181,17 @@ local function cube (x, height, z, upOffset, homeFunc)
         for i = 1, z do
             if not init then
                 if turnR then
-                    turnRight()
+                    turn("right")
                 else
-                    turnLeft()
+                    turn("left")
                 end
                 turtle.dig()
                 turtle.digDown()
-                goForward()
+                goHorizontal("forward")
                 if turnR then
-                    turnRight()
+                    turn("right")
                 else
-                    turnLeft()
+                    turn("left")
                 end
                 turtle.dig()
                 turtle.digDown()
@@ -210,7 +202,7 @@ local function cube (x, height, z, upOffset, homeFunc)
             for j = 2, x do
                 turtle.dig()
                 turtle.digDown()
-                goForward()
+                goHorizontal("forward")
             end
         end
         turtle.digDown()
@@ -226,20 +218,17 @@ local function cube (x, height, z, upOffset, homeFunc)
         if u < height then
             anotherLayer = true
             turtle.digDown()
-            goDown()
+            goVertical("down")
             u = u + 1
         end
         if u < height then
             turtle.digDown()
-            goDown()
+            goVertical("down")
             u = u + 1
         end
     until not anotherLayer
     goHome(false)
 end
-local function deposit()
-    if countEmptySlots() < 3 then
-        return EmptyAtHome()
-    end
-end
-cube(5, 3, 6, 1, deposit)
+
+cube(5, 5, 6, 1, deposit)
+goHome(true)
