@@ -1,6 +1,6 @@
 local xChange, heightChange, zChange, facing, resumeHeight = 0, 0, 0, 0, 0
 local FACING_FORWARD, FACING_RIGHT, FACING_BACK, FACING_LEFT = 0, 1, 2, 3
-
+local INVENTORY_SIZE = 16
 local directions = {
     right = {turtle.turnRight, 1},
     left = {turtle.turnLeft, -1},
@@ -52,7 +52,7 @@ local function goHorizontal(direction)
     end
 end
 local function checkSlotsFor(check_string)
-    for slot = 1, 16 do
+    for slot = 1, INVENTORY_SIZE do
         local itemDetail = turtle.getItemDetail(slot)
         if itemDetail and itemDetail.name == check_string then
             return slot
@@ -76,7 +76,7 @@ local function placeAndEmpty()
     end
     turtle.select(slot_c)
     turtle.place()
-    for  pos=1, 16 do
+    for  pos=1, INVENTORY_SIZE do
         turtle.select(pos)
         local itemDetail = turtle.getItemDetail(slot_c)
         if itemDetail and itemDetail.name ~= "minecraft:chest" and itemDetail.name ~= "minecraft:torch" then
@@ -133,7 +133,7 @@ local function placeTorch()
 end
 local function countEmptySlots()
     local count = 0
-    for i = 1, 16 do
+    for i = 1, INVENTORY_SIZE do
         if turtle.getItemCount(i) == 0 then
             count = count + 1
         end
@@ -143,7 +143,7 @@ end
 local function EmptyAtHome()
     turn("right")
     turn("right")
-    for i=1,16 do
+    for i=1,INVENTORY_SIZE do
         turtle.select(i)
         if not turtle.drop() then
             turn("right")
