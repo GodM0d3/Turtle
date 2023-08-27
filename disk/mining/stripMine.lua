@@ -135,6 +135,9 @@ local function goToHeight(targetHeight)
 end
 -- Inventory Management
 local function EmptyAtHome()
+    local cur_x,cur_y,cur_z, cur_facing= xChange, heightChange, zChange, facing
+    goToCoordinates(0,0)
+    goToHeight(0)
     turnToDirection(FACING_BACK)
     for i=1,INVENTORY_SIZE do
         turtle.select(i)
@@ -142,6 +145,9 @@ local function EmptyAtHome()
             return false
         end
     end
+    goToHeight(cur_y)
+    goToCoordinates(cur_x, cur_z)
+    turnToDirection(cur_facing)
     return true
 end
 local function placeAndEmpty()
@@ -176,6 +182,9 @@ end
 -- Mining
 local function mineRow(length, up, down)
     for _ = 1, length do
+        if countEmptySlots() < 2 then 
+            EmptyAtHome()
+        end
         while turtle.detect() do
             turtle.dig()
         end
