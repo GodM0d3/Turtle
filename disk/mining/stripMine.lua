@@ -1,7 +1,10 @@
 -- Global Variables and tables
-local xChange, heightChange, zChange, facing = 0, 0, 0, 0
+local own_pos = {x = 0, y = 0, z = 0, facing = 0}
+local chest_pos = {x = 0, y = 0, z = 0}
+local return_pos = {x = 0, y = 0, z = 0, facing = 0}
 local FACING_FORWARD, FACING_RIGHT, FACING_BACK, FACING_LEFT = 0, 1, 2, 3
 local INVENTORY_SIZE = 16
+local use_Chests = true
 local directions = {
     right = {turtle.turnRight, 1},
     left = {turtle.turnLeft, -1},
@@ -11,10 +14,10 @@ local directions = {
     back = {turtle.back, -1}
 }
 local changes = {
-    [FACING_FORWARD] = function(dir) xChange = xChange + dir end,
-    [FACING_RIGHT] = function(dir) zChange = zChange + dir end,
-    [FACING_BACK] = function(dir) xChange = xChange - dir end,
-    [FACING_LEFT] = function(dir) zChange = zChange - dir end
+    [FACING_FORWARD] = function(dir) own_pos.x = own_pos.x + dir end,
+    [FACING_RIGHT] = function(dir) own_pos.z = own_pos.z + dir end,
+    [FACING_BACK] = function(dir) own_pos.x = own_pos.x - dir end,
+    [FACING_LEFT] = function(dir) own_pos.z = own_pos.z - dir end
 }
 -- Turn function
 local function turn(direction)
@@ -24,15 +27,15 @@ local function turn(direction)
         return false
     end
     if turn_func() then 
-        facing = (facing + dir) % 4 
+        own_pos.facing = (own_pos.facing + dir) % 4 
     end
 end
 local function turnToDirection(targetDirection)
-    local rightTurns = (targetDirection - facing) % 4
+    local rightTurns = (targetDirection - own_pos.facing) % 4
     if rightTurns == 3 then
         turn("left")
     end
-    while facing ~= targetDirection do
+    while own_pos.facing ~= targetDirection do
         turn("right")
     end
 end
@@ -44,7 +47,7 @@ local function goVertical(direction)
         return false
     end
     if go_func() then 
-        heightChange = heightChange + dir
+        own_pos.y = own_pos.y + dir
         return true
     end
     return false
@@ -56,11 +59,10 @@ local function goHorizontal(direction)
         return false
     end
     if go_func() then
-        changes[facing](dir)
+        changes[own_pos.facing](dir)
         return true
-    else
-        return false
     end
+    return false
 end
 -- Checking inventory
 local function checkSlotsFor(check_string)
@@ -81,22 +83,13 @@ local function countEmptySlots()
     end
     return count
 end
--- Place stuff
-local function placeTorch()
-    local suc, slot = checkSlotsFor("minecraft:torch")
-    if not suc then
-        return false
-    end
-    turtle.select(slot)
-    return turtle.place()
-end
-
 -- Go to places
-local function goToCoordinates(x, z)
-    local xDiff = x - xChange
-    local zDiff = z - zChange
+local function goToCoordinates(x,y, z)
+    local xDiff = x - own_pos.x
+    local yDiff = y - own_pos.y
+    local zDiff = z - own_pos.z
     if xDiff > 0 then
-        turnToDirection(FACING_RIGHT)
+        turnToDirection(FACING_FORWARD)
         for _ = 1, xDiff do
             if not goHorizontal("forward") then return false end
         end
@@ -106,7 +99,6 @@ local function goToCoordinates(x, z)
             if not goHorizontal("forward") then return false end
         end
     end
-    
     if zDiff > 0 then
         turnToDirection(FACING_RIGHT)
         for _ = 1, zDiff do
@@ -118,78 +110,71 @@ local function goToCoordinates(x, z)
             if not goHorizontal("forward") then return false end
         end
     end
-    return true
-end
-local function goToHeight(targetHeight)
-    local heightDiff = targetHeight - heightChange
-    if heightDiff > 0 then
-        for _ = 1, heightDiff do
+    if yDiff > 0 then
+        for _ = 1, zDiff do
             if not goVertical("up") then return false end
         end
-    elseif heightDiff < 0 then
-        for _ = 1, math.abs(heightDiff) do
-            if not goVertical("down") then return false end
+    elseif yDiff < 0 then
+        for _ = 1, math.abs(zDiff) do
+            if not goHorizontal("down") then return false end
         end
     end
     return true
 end
 -- Inventory Management
-local function EmptyAtHome()
-    local cur_x,cur_y,cur_z, cur_facing= xChange, heightChange, zChange, facing
-    goToCoordinates(0,0)
-    goToHeight(0)
+-- First return is if it was successful, second is if it was able to return to original location
+local function emptyAt(x_loc, y_loc, z_loc)
+    return_pos.x, return_pos.y, return_pos.z, return_pos.facing = own_pos.x, own_pos.y, own_pos.z, own_pos.facing
+    if not goToCoordinates(x_loc,y_loc,z_loc) then
+        print("Error: emptyAt: Cant go to location")
+        local tmp = goToCoordinates(return_pos.x,return_pos.y, return_pos.z)
+        return false,tmp
+    end
     turnToDirection(FACING_BACK)
-    for i=1,INVENTORY_SIZE do
-        turtle.select(i)
-        if not turtle.drop() then
-            return false
-        end
-    end
-    goToHeight(cur_y)
-    goToCoordinates(cur_x, cur_z)
-    turnToDirection(cur_facing)
-    return true
-end
-local function placeAndEmpty()
-    turn("left")
-    goVertical("up")
-    while turtle.detect() do
-        turtle.dig()
-    end
-    goVertical("down")
-    while turtle.detect() do
-        turtle.dig()
-    end
-    local suc, slot_c = checkSlotsFor("minecraft:chest")
-    if not suc then
-        return false
-    end
-    turtle.select(slot_c)
-    turtle.place()
-    for  pos=1, INVENTORY_SIZE do
-        turtle.select(pos)
-        local itemDetail = turtle.getItemDetail(pos)
-        if itemDetail and itemDetail.name ~= "minecraft:chest" and itemDetail.name ~= "minecraft:torch" then
+    if own_pos.x == x_loc and own_pos.z == z_loc and own_pos.y == y_loc then
+        for i=1,INVENTORY_SIZE do
+            turtle.select(i)
             if not turtle.drop() then
-                print("Error: Cant drop in placed chest")
-                return false
+                print("Error: emptyAt: Cant drop items at location")
+                local tmp = goToCoordinates(return_pos.x,return_pos.y, return_pos.z)
+                return false,tmp
             end
         end
     end
-    turn("right")
-    return true
+    if not goToCoordinates(own_pos.x,return_pos.y, own_pos.z) then
+        print("Error: emptyAt: Cant return to height")
+        return false,false
+    end 
+    if not goToCoordinates(return_pos.x,return_pos.y, return_pos.z) then 
+        print("Error: emptyAt: Cant return to original location")
+        return false,false
+    end
+    turnToDirection(return_pos.facing)
+    if own_pos.x == return_pos.x and own_pos.z == return_pos.z and own_pos.y == return_pos.y and own_pos.facing == return_pos.facing then
+        return true,true
+    end
+    print("Error: emptyAt: Reached end of function without returning")
+    return false,false
 end
 -- Mining
 local function mineRow(length, up, down)
     for _ = 1, length do
-        if countEmptySlots() < 2 then 
-            EmptyAtHome()
+        if use_Chests and countEmptySlots() < 2 then 
+            local suc, ret = emptyAt(0,0,0)
+            if not suc then
+                print("mineRow: Error when empting inventory")
+                if not ret then
+                    print("Error: Didnt return to original location. Aborting")
+                    return false
+                end
+                print("Returned to original location, continuing")
+            end
         end
         while turtle.detect() do
             turtle.dig()
         end
         if not goHorizontal("forward") then
-            print("Error: Cant move forward")
+            print("Error: mineRow: Cant move forward")
         end
         if up then
             while turtle.detectUp() do
@@ -221,54 +206,60 @@ local function mineShaft(height, direction)
             goVertical(direction)
         end
     end
+    return true
 end
 local function mineLayer(xSize, zSize, up, down)
-    goToCoordinates(0,0)
-    for iteration = 0, zSize - 1 do
-        turnToDirection((iteration % 2) * 2)
-        mineRow(xSize - 1, up, down)
-        if iteration ~= (zSize - 1) then
-            turnToDirection(FACING_RIGHT)
-            mineRow(1, up, down)
-        end
-    end
-end
-
--- Main functions
-local function cube(xSize, ySize, zSize, yOffset)
-    if turtle.getFuelLevel() < (xSize * ySize * zSize) then
+    if turtle.getFuelLevel() < ((xSize * zSize) + zSize) then
         print("Error: Not enough fuel")
         return false
     end
+    goToCoordinates(0,own_pos.y,0)
+    for iteration = 0, zSize - 1 do
+        turnToDirection((iteration % 2) * 2)
+        if not mineRow(xSize - 1, up, down) then
+            print("Error: Cant mine row")
+            return false
+        end
+        if iteration ~= (zSize - 1) then
+            turnToDirection(FACING_RIGHT)
+            if not mineRow(1, up, down) then
+                print("Error: Cant mine row")
+                return false
+            end
+        end
+    end
+    return true
+end
+-- Main functions
+local function cube(xSize, ySize, zSize, yOffset)
     mineShaft(ySize-yOffset -1, "down")
-    goToHeight(0)
+    goToCoordinates(own_pos.x,0,own_pos.z)
     mineShaft(yOffset, "up")
     print("Shaft finished")
     local level = 1
     while level <= ySize do
-        goToCoordinates(0,0)
+        goToCoordinates(0,own_pos.y,0)
         if level == ySize then
             print("Single level")
-            goToHeight(yOffset - level + 1)
+            goToCoordinates(own_pos.x,yOffset - level + 1,own_pos.z)
             mineLayer(xSize, zSize, false, false)
             level = level + 1
         elseif level + 1 == ySize then
             print("Double level")
-
-            goToHeight(yOffset - level + 1)
+            goToCoordinates(own_pos.x,yOffset - level + 1,own_pos.z)
             mineLayer(xSize, zSize, false, true)
             level = level + 2
         else
             print("Tripple level")
-            goToHeight(yOffset - level)
+            goToCoordinates(own_pos.x,yOffset - level,own_pos.z)
             mineLayer(xSize, zSize, true, true)
             level = level + 3
         end
     end
-    goToHeight(0)
-    goToCoordinates(0,0)
+    goToCoordinates(own_pos.x,0,own_pos.y)
+    goToCoordinates(0,own_pos.y,0)
     turnToDirection(FACING_FORWARD)
 end
+
 turtle.refuel()
 cube (3, 7, 2, 0)
---mineShaft(4,"down")
