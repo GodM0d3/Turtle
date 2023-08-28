@@ -1,3 +1,4 @@
+-- wget https://raw.githubusercontent.com/GodM0d3/Turtle/main/disk/mining/stripMining.lua stripMining.lua
 -- Get the arguments
 local amount_ = tonumber(arg[1]) or 5 -- Default to 5 if no argument is given
 local length_ = tonumber(arg[2]) or 32 -- Default to 32 if no argument is given
@@ -9,8 +10,7 @@ branch = {amount = amount_, 	-- the amount of "branch-pairs"
 slot = {fuel  = 1,	-- the slotnumber for fuel
 	torch = 2,	-- the slotnumber for torches
 	fill  = 3}	-- the slotnumber for filling material
-other = {torch = true,  -- place torches? (true=yes/false=no)
-         close = true}  -- close the branches? (true=yes/false=no)
+other = {torch = true}
 -- END OF ADJUSTMENTS
 
 -- rest of the script...
@@ -44,6 +44,9 @@ function forward(length)
    turtle.placeDown()
   end
   turtle.forward()
+  if i == 4 or (i - 4) % 16 == 0 then
+    torch()
+   end
  end
 end
 
@@ -62,10 +65,6 @@ function back(length)
   if i==9 then torch() end --places a torch after the first 8 blocks and
   if (i-8)%16==0 and i>9 then torch() end --then another every 16 blocks
   turtle.back()
-  if i==length-1 and other.close then --closes the branch 
-   turtle.select(slot.fill)
-   turtle.placeUp()
-  end
  end
 end
 

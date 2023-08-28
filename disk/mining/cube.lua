@@ -1,3 +1,4 @@
+--wget https://raw.githubusercontent.com/GodM0d3/Turtle/main/disk/mining/cube.lua cube.lua
 -- Global Variables and tables
 local own_pos = {x = 0, y = 0, z = 0, facing = 0}
 local chest_pos = {x = 0, y = 0, z = 0}
