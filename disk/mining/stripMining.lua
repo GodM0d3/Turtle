@@ -45,7 +45,9 @@ function forward(length)
   end
   turtle.forward()
   if i == 4 or (i - 4) % 16 == 0 then
+    turnAround()
     torch()
+    turnAround()
    end
  end
 end
