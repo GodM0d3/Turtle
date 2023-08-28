@@ -85,9 +85,7 @@ local function countEmptySlots()
 end
 -- Go to places
 local function goToCoordinates(x,y, z)
-    local xDiff = x - own_pos.x
-    local yDiff = y - own_pos.y
-    local zDiff = z - own_pos.z
+    local xDiff, yDiff, zDiff = x - own_pos.x, y - own_pos.y, z - own_pos.z
     if xDiff > 0 then
         turnToDirection(FACING_FORWARD)
         for _ = 1, xDiff do
@@ -189,7 +187,7 @@ local function mineRow(length, up, down)
     end
 end
 local function mineShaft(height, direction) 
-    if height <= 0 then
+    if height < 0 then
         print("Error: Cant mine shaft with negative height")
         return false
     end
@@ -231,29 +229,28 @@ local function mineLayer(xSize, zSize, up, down)
     return true
 end
 -- Main functions
-local function cube(xSize, ySize, zSize, yOffset)
-    mineShaft(ySize-yOffset -1, "down")
+local function cube(xSize, ySize, zSize)
+    mineShaft(ySize -1, "down")
     goToCoordinates(own_pos.x,0,own_pos.z)
-    mineShaft(yOffset, "up")
     print("Shaft finished")
-    local level = 1
+    local level = 0
     while level <= ySize do
         goToCoordinates(0,own_pos.y,0)
-        if level == ySize then
+        if level == -ySize then
             print("Single level")
-            goToCoordinates(own_pos.x,yOffset - level + 1,own_pos.z)
+            goToCoordinates(own_pos.x,level,own_pos.z)
             mineLayer(xSize, zSize, false, false)
-            level = level + 1
-        elseif level + 1 == ySize then
+            level = level - 1
+        elseif level + 1 == -ySize then
             print("Double level")
-            goToCoordinates(own_pos.x,yOffset - level + 1,own_pos.z)
+            goToCoordinates(own_pos.x,level,own_pos.z)
             mineLayer(xSize, zSize, false, true)
-            level = level + 2
+            level = level - 2
         else
             print("Tripple level")
-            goToCoordinates(own_pos.x,yOffset - level,own_pos.z)
+            goToCoordinates(own_pos.x,level - 1,own_pos.z)
             mineLayer(xSize, zSize, true, true)
-            level = level + 3
+            level = level - 3
         end
     end
     goToCoordinates(own_pos.x,0,own_pos.y)
@@ -262,4 +259,4 @@ local function cube(xSize, ySize, zSize, yOffset)
 end
 
 turtle.refuel()
-cube (3, 7, 2, 0)
+cube (3, 7, 2)
